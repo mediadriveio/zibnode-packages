@@ -1,60 +1,36 @@
-# ZibNode Packages
+# ZibNode Installer Packages
 
-This repository contains the latest packages for ZibNode Installer, automatically built and published from the [electron-app](https://github.com/mediadriveio/electron-app) repository.
+This repository contains the latest packages for ZibNode Installer.
 
-## 📦 Available Packages
+## Available Packages
 
-- **Linux**: Latest Linux installers (AppImage, deb, rpm formats)
 - **macOS**: Latest DMG installer for macOS ARM
+- **Linux**: Latest Linux installer
 - **Source**: Source code and build artifacts
 
-## 🚀 Installation
+## Package Index
 
-### Linux
+The latest package information is available in [packages/index.json](packages/index.json).
 
-#### AppImage (Recommended)
-1. Download the appropriate AppImage from the [packages/linux](packages/linux) directory
-2. Make it executable: `chmod +x filename.AppImage`
-3. Run the installer: `./filename.AppImage`
-
-#### Debian/Ubuntu (.deb)
-1. Download the appropriate .deb file from the [packages/linux](packages/linux) directory
-2. Install: `sudo dpkg -i filename.deb`
-3. Fix dependencies: `sudo apt-get install -f`
-
-#### Red Hat/Fedora (.rpm)
-1. Download the appropriate .rpm file from the [packages/linux](packages/linux) directory
-2. Install: `sudo rpm -i filename.rpm`
+## Installation
 
 ### macOS
 1. Download the latest DMG from the [packages/macos](packages/macos) directory
 2. Mount the DMG file
 3. Drag the application to your Applications folder
 
-## 📋 Package Information
+### Linux
+1. Download the latest package from the [packages/linux](packages/linux) directory
+2. Make it executable: `chmod +x filename`
+3. Run the installer: `./filename`
 
-The latest package information is available in [packages/index.json](packages/index.json).
+## Build Information
 
-## 🔗 Links
+- **Last Updated**: 2025-08-27 08:08:09 UTC
+- **Commit SHA**: ee7a31a1f94896b429f3ced79bae9ad1653677bd
+- **Repository**: mediadriveio/electron-app
 
-- **GitHub Pages**: https://mediadriveio.github.io/zibnode-packages/
-- **Source Repository**: https://github.com/mediadriveio/electron-app
-- **Latest Releases**: https://github.com/mediadriveio/zibnode-packages/releases
+## GitHub Pages
 
-## 🔄 Automatic Updates
-
-This repository is automatically updated when:
-1. Code is pushed to the `main` branch in the [electron-app](https://github.com/mediadriveio/electron-app) repository
-2. Build workflows complete successfully
-3. Packages are pushed to the `gh-pages` branch
-4. GitHub releases are automatically created with all packages
-
-## 📊 Build Information
-
-- **Last Updated**: See [packages/index.json](packages/index.json) for the latest build information
-- **Source Repository**: [mediadriveio/electron-app](https://github.com/mediadriveio/electron-app)
-- **Build Status**: [![Build Status](https://github.com/mediadriveio/electron-app/workflows/Build%20Linux%20Package/badge.svg)](https://github.com/mediadriveio/electron-app/actions)
-
----
-
-*This repository is automatically maintained by GitHub Actions workflows.*
+This repository is configured to serve packages via GitHub Pages at:
+https://mediadriveio.github.io/zibnode-packages/
