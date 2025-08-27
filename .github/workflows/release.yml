@@ -1,5 +1,4 @@
 name: Create Release from Packages
-
 on:
   push:
     branches: [gh-pages]
