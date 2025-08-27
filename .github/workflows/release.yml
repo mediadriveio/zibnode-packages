@@ -28,6 +28,45 @@ jobs:
             echo "Package index found, contents:"
             cat packages/index.json
             
+            # Debug: Check actual file sizes
+            echo "=== DEBUG: Checking actual files ==="
+            if [ -d "packages/linux" ]; then
+              echo "Linux packages directory:"
+              ls -la packages/linux/
+              echo "File sizes:"
+              for file in packages/linux/*; do
+                if [ -f "$file" ]; then
+                  file_size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                  echo "$(basename "$file"): $file_size bytes"
+                  # Check if it's a small file (might be corrupted)
+                  if [ "$file_size" -lt 1000 ]; then
+                    echo "  -> WARNING: Very small file size!"
+                  else
+                    echo "  -> Actual file (large size)"
+                  fi
+                fi
+              done
+            fi
+            
+            if [ -d "packages/macos" ]; then
+              echo "macOS packages directory:"
+              ls -la packages/macos/
+              echo "File sizes:"
+              for file in packages/macos/*; do
+                if [ -f "$file" ]; then
+                  file_size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                  echo "$(basename "$file"): $file_size bytes"
+                  # Check if it's a small file (might be corrupted)
+                  if [ "$file_size" -lt 1000 ]; then
+                    echo "  -> WARNING: Very small file size!"
+                  else
+                    echo "  -> Actual file (large size)"
+                  fi
+                fi
+              done
+            fi
+            echo "=== END DEBUG ==="
+            
             # Extract information from index
             last_updated=$(jq -r '.last_updated' packages/index.json)
             commit_sha=$(jq -r '.commit_sha' packages/index.json)
