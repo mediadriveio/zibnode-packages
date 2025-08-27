@@ -1,0 +1,280 @@
+name: Create Release from Packages
+
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - 'packages/**'
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code (without LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          ref: gh-pages
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Read package index
+        id: read_index
+        run: |
+          if [ -f "packages/index.json" ]; then
+            echo "Package index found, contents:"
+            cat packages/index.json
+            
+            # Extract information from index
+            last_updated=$(jq -r '.last_updated' packages/index.json)
+            commit_sha=$(jq -r '.commit_sha' packages/index.json)
+            linux_count=$(jq -r '.packages.linux.files | length' packages/index.json)
+            macos_count=$(jq -r '.packages.macos.files | length' packages/index.json)
+            
+            echo "Found $linux_count Linux packages and $macos_count macOS packages in index"
+            
+            # Check actual files on disk
+            echo "Checking actual files on disk:"
+            if [ -d "packages/linux" ]; then
+              echo "Linux directory contents:"
+              ls -la packages/linux/
+              linux_files_count=$(find packages/linux -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" | wc -l)
+            else
+              linux_files_count=0
+            fi
+            
+            if [ -d "packages/macos" ]; then
+              echo "macOS directory contents:"
+              ls -la packages/macos/
+              macos_files_count=$(find packages/macos -name "*.dmg" | wc -l)
+            else
+              macos_files_count=0
+            fi
+            
+            echo "Found $linux_files_count Linux files and $macos_files_count macOS files on disk"
+            
+            # Use the higher count between index and actual files
+            echo "Index counts: $linux_count Linux + $macos_count macOS"
+            echo "File counts: $linux_files_count Linux + $macos_files_count macOS"
+            
+            final_linux_count=$((linux_count > linux_files_count ? linux_count : linux_files_count))
+            final_macos_count=$((macos_count > macos_files_count ? macos_count : macos_files_count))
+            
+            echo "Using counts: $final_linux_count Linux + $final_macos_count macOS"
+            
+            echo "last_updated=$last_updated" >> $GITHUB_OUTPUT
+            echo "commit_sha=$commit_sha" >> $GITHUB_OUTPUT
+            echo "linux_count=$final_linux_count" >> $GITHUB_OUTPUT
+            echo "macos_count=$final_macos_count" >> $GITHUB_OUTPUT
+            echo "linux_files_count=$linux_files_count" >> $GITHUB_OUTPUT
+            echo "macos_files_count=$macos_files_count" >> $GITHUB_OUTPUT
+          else
+            echo "No package index found"
+            echo "last_updated=" >> $GITHUB_OUTPUT
+            echo "commit_sha=" >> $GITHUB_OUTPUT
+            echo "linux_count=0" >> $GITHUB_OUTPUT
+            echo "macos_count=0" >> $GITHUB_OUTPUT
+            echo "linux_files_count=0" >> $GITHUB_OUTPUT
+            echo "macos_files_count=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check if we have packages to release
+        id: check_packages
+        run: |
+          linux_count="${{ steps.read_index.outputs.linux_count }}"
+          macos_count="${{ steps.read_index.outputs.macos_count }}"
+          total_packages=$((linux_count + macos_count))
+          
+          if [ "$total_packages" -gt 0 ]; then
+            echo "Found $total_packages packages, will create release"
+            echo "has_packages=true" >> $GITHUB_OUTPUT
+          else
+            echo "No packages found, skipping release"
+            echo "has_packages=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Generate release tag
+        if: steps.check_packages.outputs.has_packages == 'true'
+        id: generate_tag
+        run: |
+          date_tag=$(date -u +"%Y%m%d")
+          commit_sha="${{ steps.read_index.outputs.commit_sha }}"
+          short_sha=$(echo "$commit_sha" | cut -c1-8)
+          tag="v1.0.0-${date_tag}-${short_sha}"
+          echo "Generated tag: $tag"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+      
+      - name: Check if release already exists
+        if: steps.check_packages.outputs.has_packages == 'true'
+        id: check_release
+        run: |
+          tag="${{ steps.generate_tag.outputs.tag }}"
+          
+          # Check if release already exists
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists, will update it"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release $tag does not exist, will create new"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create new release
+        if: steps.check_packages.outputs.has_packages == 'true' && steps.check_release.outputs.exists == 'false'
+        run: |
+          tag="${{ steps.generate_tag.outputs.tag }}"
+          last_updated="${{ steps.read_index.outputs.last_updated }}"
+          commit_sha="${{ steps.read_index.outputs.commit_sha }}"
+          
+          # Count actual files on disk
+          linux_files_count="${{ steps.read_index.outputs.linux_files_count }}"
+          macos_files_count="${{ steps.read_index.outputs.macos_files_count }}"
+          
+          # Create release notes
+          cat > release_notes.md << EOF
+          # ZibNode Installer Release $tag
+
+          ## 📦 Package Summary
+          - **Linux Packages**: $linux_files_count files
+          - **macOS Packages**: $macos_files_count files
+          - **Build Date**: $last_updated
+          - **Source Commit**: [$commit_sha](https://github.com/mediadriveio/electron-app/commit/$commit_sha)
+
+          ## 🚀 Installation
+
+          ### Linux
+          Download the appropriate package for your architecture:
+
+          EOF
+          
+          # Add Linux package details from actual files
+          if [ "$linux_files_count" -gt 0 ] && [ -d "packages/linux" ]; then
+            echo "#### AppImage (Recommended)" >> release_notes.md
+            for file in packages/linux/*.AppImage; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                size_mb=$((size / 1024 / 1024))
+                echo "- **$filename**: (${size_mb}MB)" >> release_notes.md
+              fi
+            done
+            
+            echo "" >> release_notes.md
+            echo "#### Debian/Ubuntu (.deb)" >> release_notes.md
+            for file in packages/linux/*.deb; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                size_mb=$((size / 1024 / 1024))
+                echo "- **$filename**: (${size_mb}MB)" >> release_notes.md
+              fi
+            done
+            
+            echo "" >> release_notes.md
+            echo "#### Red Hat/Fedora (.rpm)" >> release_notes.md
+            for file in packages/linux/*.rpm; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                size_mb=$((size / 1024 / 1024))
+                echo "- **$filename**: (${size_mb}MB)" >> release_notes.md
+              fi
+            done
+          fi
+          
+          # Add macOS package details from actual files
+          if [ "$macos_files_count" -gt 0 ] && [ -d "packages/macos" ]; then
+            echo "" >> release_notes.md
+            echo "### macOS" >> release_notes.md
+            for file in packages/macos/*.dmg; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                size=$(stat -c%s "$file" 2>/dev/null || echo "0")
+                size_mb=$((size / 1024 / 1024))
+                echo "- **$filename**: (${size_mb}MB)" >> release_notes.md
+              fi
+            done
+          fi
+          
+          cat >> release_notes.md << EOF
+
+          ## 🔧 Installation Instructions
+
+          ### Linux AppImage
+          1. Download the appropriate AppImage for your architecture
+          2. Make it executable: \`chmod +x filename.AppImage\`
+          3. Run: \`./filename.AppImage\`
+
+          ### Linux Debian/Ubuntu
+          1. Download the .deb file for your architecture
+          2. Install: \`sudo dpkg -i filename.deb\`
+          3. Fix dependencies: \`sudo apt-get install -f\`
+
+          ### Linux Red Hat/Fedora
+          1. Download the .rpm file for your architecture
+          2. Install: \`sudo rpm -i filename.rpm\`
+
+          ### macOS
+          1. Download the .dmg file
+          2. Mount the DMG
+          3. Drag the application to Applications folder
+
+          ## 📋 Package Details
+          Full package information: [packages/index.json](https://mediadriveio.github.io/zibnode-packages/packages/index.json)
+
+          ## 🔗 Links
+          - **GitHub Pages**: https://mediadriveio.github.io/zibnode-packages/
+          - **Source Repository**: https://github.com/mediadriveio/electron-app
+          - **Package Repository**: https://github.com/mediadriveio/zibnode-packages
+
+          ---
+          *This release was automatically generated from packages built in the source repository.*
+          EOF
+          
+          # Create the release
+          gh release create "$tag" \
+            --title "ZibNode Installer $tag" \
+            --notes-file release_notes.md
+          
+          echo "Release $tag created successfully"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update existing release
+        if: steps.check_packages.outputs.has_packages == 'true' && steps.check_release.outputs.exists == 'true'
+        run: |
+          tag="${{ steps.generate_tag.outputs.tag }}"
+          echo "Updating existing release $tag with new packages..."
+          
+          # Upload all package files as release assets
+          echo "Uploading package files as release assets..."
+          
+          # Upload Linux packages
+          if [ -d "packages/linux" ]; then
+            for file in packages/linux/*.AppImage packages/linux/*.deb packages/linux/*.rpm; do
+              if [ -f "$file" ]; then
+                echo "Uploading $(basename "$file")..."
+                gh release upload "$tag" "$file"
+              fi
+            done
+          fi
+          
+          # Upload macOS packages
+          if [ -d "packages/macos" ]; then
+            for file in packages/macos/*.dmg; do
+              if [ -f "$file" ]; then
+                echo "Uploading $(basename "$file")..."
+                gh release upload "$tag" "$file"
+              fi
+            done
+          fi
+          
+          echo "Release $tag updated successfully with new packages"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
