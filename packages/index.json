@@ -1,13 +1,13 @@
 {
-  "last_updated": "2025-08-27T09:57:36Z",
-  "commit_sha": "39df982ed788b637d7235922462f6ac5255bf557",
+  "last_updated": "2025-08-27T10:17:34Z",
+  "commit_sha": "b2c7e16fade332a1e6b5c14d9bf85014979bebd4",
   "packages": {
     "macos": {
       "files": [
         {
           "name": "TahoeInstaller-1.0.0-arm64.dmg",
-          "size": 109926938,
-          "sha256": "626bcf711263e2e342fe7cebe8b41daf24308ba022ffe028a778a0c7790eab50",
+          "size": 109927568,
+          "sha256": "c7eb972c1d1dccd93aba8c306116f7ebca0ad4df8dc5579dc616dd2176435015",
           "url": "https://mediadriveio.github.io/zibnode-packages/packages/macos/TahoeInstaller-1.0.0-arm64.dmg"
         }
       ]
