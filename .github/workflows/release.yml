@@ -10,10 +10,10 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code (without LFS)
+      - name: Checkout code (with LFS)
         uses: actions/checkout@v4
         with:
-          lfs: false
+          lfs: true
           ref: gh-pages
       
       - name: Setup Node.js
